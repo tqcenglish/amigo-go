@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -50,7 +49,11 @@ func amiTest() {
 }
 
 func main() {
+
 	go amiTest()
-	var input string
-	fmt.Scanln(&input)
+
+	// ch := make(chan int)
+	// <-ch
+	select {}
+
 }

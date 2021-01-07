@@ -52,11 +52,6 @@ type Settings struct {
 	Keepalive         bool
 }
 
-type agiCommand struct {
-	c        chan map[string]string
-	dateTime time.Time
-}
-
 // New creates new Amigo struct with credentials provided and returns pointer to it
 // Usage: New(username string, secret string, [host string, [port string]])
 // 建立连接
@@ -71,10 +66,6 @@ func New(settings *Settings) *Amigo {
 		connected:    false,
 		responses:    make(map[string]*parse.Response),
 	}
-
-	eventEmitter.On("namiRawMessage", amiInstance.onRawMessage)
-	eventEmitter.On("namiRawResponse", amiInstance.onRawResponse)
-	eventEmitter.On("namiRawEvent", amiInstance.onRawEvent)
 
 	eventEmitter.On("error", func(payload ...interface{}) {
 		utils.Log.Errorf("ami error %s", payload[0].(string))
@@ -105,14 +96,14 @@ func New(settings *Settings) *Amigo {
 func (a *Amigo) Send(action map[string]string) (data map[string]string, event []parse.Event, err error) {
 	utils.Log.Infof("send action: %+v\n", action)
 	if !a.Connected() {
-		utils.Log.Infof("ami not connected")
+		utils.Log.Warnf("ami not connected")
 		return nil, nil, errNotConnected
 	}
 
 	actionID := uuid.NewV4()
 	action["ActionID"] = actionID
-	a.ami.exec(action)
 	a.responses[actionID] = parse.NewResponse("")
+	a.ami.exec(action)
 
 	// 超时处理
 	time.AfterFunc(time.Duration(utils.ActionTimeout)*time.Second, func() {
@@ -131,9 +122,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 		}
 	})
 
-	utils.Log.Infof("wait %s complete", actionID)
 	<-a.responses[actionID].Complete
-	utils.Log.Infof("wait %s complete ok", actionID)
 	response := a.responses[actionID]
 
 	close(a.responses[actionID].Complete)
@@ -174,6 +163,14 @@ func (a *Amigo) initAMI() {
 		a.mutex.Lock()
 		a.ami = am
 		a.mutex.Unlock()
+		go func() {
+			for {
+				select {
+				case msg := <-a.ami.msg:
+					a.onRawMessage(msg)
+				}
+			}
+		}()
 	}
 }
 
@@ -194,44 +191,34 @@ func (a *Amigo) ConnectOn(fn func(...interface{})) {
 	a.eventEmitter.AddListener("AMI_Connect", fn)
 }
 
-func (a *Amigo) onRawMessage(payload ...interface{}) {
-	message := payload[0].(string)
-
+func (a *Amigo) onRawMessage(message string) {
 	if ok, _ := regexp.Match(`^Event: `, []byte(message)); ok {
 		event := parse.NewEvent(message)
-		a.eventEmitter.Emit("namiRawEvent", event)
+		a.onRawEvent(event)
 	} else if ok, _ := regexp.Match(`^Response: `, []byte(message)); ok {
 		response := parse.NewResponse(message)
-		utils.Log.Infof("namiRawResponse%s%+v", utils.EOL, response)
-		a.eventEmitter.Emit("namiRawResponse", response)
+		a.onRawResponse(response)
 	} else {
 		utils.Log.Warnf("Discarded: message %s", message)
 	}
 }
-func (a *Amigo) onRawResponse(payload ...interface{}) {
-	response := payload[0].(*parse.Response)
+func (a *Amigo) onRawResponse(response *parse.Response) {
 	actionID := response.Data["ActionID"]
 	if value, ok := response.Data["Message"]; ok && strings.Contains(value, "follow") {
-		if id, exist := response.Data["ActionID"]; exist {
-			a.responses[id].Data = response.Data
-		}
+		a.responses[actionID].Data = response.Data
 	} else {
 		a.responses[actionID].Complete <- struct{}{}
 		a.responses[actionID].Data = (*response).Data
 	}
 }
-func (a *Amigo) onRawEvent(payload ...interface{}) {
-	event := payload[0].(*parse.Event)
-
+func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
 		if _, existRes := a.responses[actionID]; existRes {
 			response := a.responses[actionID]
 			response.Events = append(response.Events, *event)
 		}
 		if strings.Contains(event.Data["Event"], "Complete") || strings.Contains(event.Data["Event"], "DBGetResponse") || (event.Data["EventList"] != "" && strings.Contains(event.Data["EventList"], "Complete")) {
-			utils.Log.Infof("Complete %s %+v", event.Data["Event"], a.responses[actionID])
 			a.responses[actionID].Complete <- struct{}{}
-			utils.Log.Infof("write Complete %s", actionID)
 		}
 		return
 	}

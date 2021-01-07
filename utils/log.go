@@ -11,6 +11,6 @@ func NewLog() {
 		logrus.Fields{
 			"libname": "ami-go",
 		})
-	// Log.Logger.SetReportCaller(true)
+	Log.Logger.SetReportCaller(true)
 	Log.Logger.SetLevel(logrus.DebugLevel)
 }

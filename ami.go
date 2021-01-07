@@ -1,11 +1,10 @@
 package amigo
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,16 +13,18 @@ import (
 )
 
 type amiAdapter struct {
-	received []byte
-	id       string
+	received chan []byte
+	msg      chan string
 
-	dialString string
-	username   string
-	password   string
+	id string
+
+	username string
+	password string
 
 	connected bool
 	reconnect bool
 
+	dialString  string
 	dialTimeout time.Duration
 
 	actionsChan chan map[string]string
@@ -35,9 +36,13 @@ type amiAdapter struct {
 
 func newAMIAdapter(s *Settings, eventEmitter events.EventEmmiter) (*amiAdapter, error) {
 	a := &amiAdapter{
-		dialString:   fmt.Sprintf("%s:%s", s.Host, s.Port),
-		username:     s.Username,
-		password:     s.Password,
+		dialString: fmt.Sprintf("%s:%s", s.Host, s.Port),
+		username:   s.Username,
+		password:   s.Password,
+
+		received: make(chan []byte, 1024),
+		msg:      make(chan string, 1024),
+
 		dialTimeout:  s.DialTimeout,
 		mutex:        &sync.RWMutex{},
 		eventEmitter: eventEmitter,
@@ -119,10 +124,38 @@ func (a *amiAdapter) openConnection() (net.Conn, error) {
 }
 
 func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan chan error) {
+	go func() {
+		var result []byte
+		for {
+			select {
+			case msg := <-a.received:
+				result = append(result, msg...)
+				for {
+					index := strings.Index(string(result), utils.EOM)
+					if index != -1 {
+						// 获取结束位置
+						endIndex := index + len(utils.EOM)
+						skippedEolChars := 0
+						for endIndex+skippedEolChars+1 <= len(result) {
+							nextChar := result[endIndex+skippedEolChars+1]
+							if nextChar == '\r' || nextChar == '\n' {
+								skippedEolChars++
+								continue
+							}
+							break
+						}
+						a.msg <- string(result[:index])
+						result = result[endIndex:]
+						continue
+					}
+					break
+				}
+			}
+		}
+	}()
+
 	// 持续读取数据
-	buf := make([]byte, 1024*20)
-	var data []byte
-	result := bytes.NewBuffer(nil)
+	buf := make([]byte, 1024*4)
 	for {
 		n, err := conn.Read(buf)
 		if err == io.EOF {
@@ -132,34 +165,7 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 			utils.Log.Errorf("socket  error %+v", err)
 			break
 		}
-		old := string(buf[:n])
-		if a.received != nil {
-			data = append(a.received, buf[:n]...)
-			utils.Log.Infof("补充上一次数据\n原数据%s补充后%s", buf[:n], data)
-			a.received = nil
-		} else {
-			data = buf[:n]
-		}
-		result.Write(data)
-		// utils.Log.Infof("Write len %d value %s", p, data)
-
-		scanner := bufio.NewScanner(result)
-		scanner.Split(utils.PacketSlitFunc)
-		for scanner.Scan() {
-			msg := scanner.Text()
-			if len(old) > len(msg) {
-				old = string(old[len(msg):])
-			}
-			go a.eventEmitter.Emit("namiRawMessage", msg)
-		}
-		// msg 不是一个完整的消息
-		if err := scanner.Err(); err == utils.ErrEOM {
-			utils.Log.Infof("重复使用 %s", old)
-			// fmt.Printf("%+v\n", buf[:n])
-			// fmt.Printf("%+v\n", old)
-			a.received = []byte(old)
-			// fmt.Printf("%+v\n", a.received)
-		}
+		a.received <- buf[:n]
 	}
 }
 
