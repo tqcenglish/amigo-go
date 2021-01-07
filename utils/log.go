@@ -9,8 +9,9 @@ var Log *logrus.Entry
 func NewLog() {
 	Log = logrus.WithFields(
 		logrus.Fields{
-			"libname": "ami-go",
-		})
+			// "libname": "ami-go",
+		},
+	)
 	Log.Logger.SetReportCaller(true)
 	Log.Logger.SetLevel(logrus.DebugLevel)
 }

@@ -13,7 +13,7 @@ import (
 )
 
 type amiAdapter struct {
-	received chan []byte
+	received chan string
 	msg      chan string
 
 	id string
@@ -40,7 +40,7 @@ func newAMIAdapter(s *Settings, eventEmitter events.EventEmmiter) (*amiAdapter, 
 		username:   s.Username,
 		password:   s.Password,
 
-		received: make(chan []byte, 1024),
+		received: make(chan string, 1024),
 		msg:      make(chan string, 1024),
 
 		dialTimeout:  s.DialTimeout,
@@ -129,7 +129,8 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 		for {
 			select {
 			case msg := <-a.received:
-				result = append(result, msg...)
+				utils.Log.Infof("socket received msg: %s", msg)
+				result = append(result, []byte(msg)...)
 				for {
 					index := strings.Index(string(result), utils.EOM)
 					if index != -1 {
@@ -165,7 +166,8 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 			utils.Log.Errorf("socket  error %+v", err)
 			break
 		}
-		a.received <- buf[:n]
+		utils.Log.Infof("socket send msg: %s", string(buf[:n]))
+		a.received <- string(buf[:n])
 	}
 }
 

@@ -22,10 +22,11 @@ func amiTest() {
 
 	// 每 10s 运行
 	go func() {
+		count := 0
 		for {
 			now := time.Now()
 			// 计算下一个零点
-			next := now.Add(time.Second * 10)
+			next := now.Add(time.Second * 6)
 			t := time.NewTimer(next.Sub(now))
 			<-t.C
 
@@ -33,7 +34,7 @@ func amiTest() {
 			if err != nil {
 				log.Error(err)
 			} else {
-				log.Infof("*********************************************")
+				log.Infof("*******************%d**************************", count)
 				log.Infof("SIPpeers res %+v", result)
 				log.Infof("SIPpeers events %d", len(events))
 				for _, event := range events {
@@ -43,6 +44,7 @@ func amiTest() {
 				}
 				log.Infof("*********************************************")
 			}
+			count = count + 1
 		}
 	}()
 
