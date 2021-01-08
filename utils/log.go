@@ -6,12 +6,12 @@ import "github.com/sirupsen/logrus"
 var Log *logrus.Entry
 
 //NewLog new log
-func NewLog() {
+func NewLog(level logrus.Level, report bool) {
 	Log = logrus.WithFields(
 		logrus.Fields{
-			// "libname": "ami-go",
+			"libname": "ami-go",
 		},
 	)
-	Log.Logger.SetReportCaller(true)
-	Log.Logger.SetLevel(logrus.DebugLevel)
+	Log.Logger.SetReportCaller(report)
+	Log.Logger.SetLevel(level)
 }

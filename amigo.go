@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/tqcenglish/ami-go/events"
 	"github.com/tqcenglish/ami-go/parse"
 	"github.com/tqcenglish/ami-go/utils"
-	"github.com/tqcenglish/ami-go/uuid"
 )
 
 var (
@@ -36,20 +36,18 @@ type Amigo struct {
 }
 
 // Settings represents connection settings for Amigo.
-// Default:
-// Username = admin,
-// Password = amp111,
-// Host = 127.0.0.1,
-// Port = 5038,
-// DialTimeout = 10s
 type Settings struct {
-	Username          string
-	Password          string
-	Host              string
-	Port              string
+	Username string
+	Password string
+	Host     string
+	Port     string
+
 	DialTimeout       time.Duration
 	ReconnectInterval time.Duration
 	Keepalive         bool
+
+	LogLevel logrus.Level
+	Report   bool
 }
 
 // New creates new Amigo struct with credentials provided and returns pointer to it
@@ -57,7 +55,8 @@ type Settings struct {
 // 建立连接
 func New(settings *Settings) *Amigo {
 	eventEmitter := events.New()
-	utils.NewLog()
+
+	utils.NewLog(settings.LogLevel, settings.Report)
 
 	amiInstance := &Amigo{
 		settings:     settings,
@@ -94,13 +93,13 @@ func New(settings *Settings) *Amigo {
 // Send used to execute Actions in Asterisk. Returns immediately response from asterisk. Full response will follow.
 // Usage amigo.Send(action map[string]string)
 func (a *Amigo) Send(action map[string]string) (data map[string]string, event []parse.Event, err error) {
-	utils.Log.Infof("send action: %+v\n", action)
+	utils.Log.Debugf("send action: %+v\n", action)
 	if !a.Connected() {
 		utils.Log.Warnf("ami not connected")
 		return nil, nil, errNotConnected
 	}
 
-	actionID := uuid.NewV4()
+	actionID := utils.NewV4()
 	action["ActionID"] = actionID
 	a.responses[actionID] = parse.NewResponse("")
 	a.ami.exec(action)
@@ -192,7 +191,6 @@ func (a *Amigo) ConnectOn(fn func(...interface{})) {
 }
 
 func (a *Amigo) onRawMessage(message string) {
-	// utils.Log.Infof("onRawMessage: %s", message);
 	if ok, _ := regexp.Match(`^Event: `, []byte(message)); ok {
 		event := parse.NewEvent(message)
 		a.onRawEvent(event)
@@ -208,7 +206,6 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	if value, ok := response.Data["Message"]; ok && strings.Contains(value, "follow") {
 		a.responses[actionID].Data = response.Data
 	} else {
-		utils.Log.Infof("onRawResponse %+v\n%s", a.responses, actionID)
 		a.responses[actionID].Complete <- struct{}{}
 		a.responses[actionID].Data = (*response).Data
 	}

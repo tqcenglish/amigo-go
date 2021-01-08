@@ -5,6 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	amigo "github.com/tqcenglish/ami-go"
+	"github.com/tqcenglish/ami-go/utils"
 )
 
 var a *amigo.Amigo
@@ -30,19 +31,28 @@ func amiTest() {
 			t := time.NewTimer(next.Sub(now))
 			<-t.C
 
-			result, events, err := a.Send(map[string]string{"Action": "SIPpeers"})
+			// result, events, err := a.Send(map[string]string{"Action": "SIPpeers"})
+			// if err != nil {
+			// 	log.Error(err)
+			// } else {
+			// 	log.Infof("*******************%d**************************", count)
+			// 	log.Infof("SIPpeers res %+v", result)
+			// 	log.Infof("SIPpeers events %d", len(events))
+			// 	for _, event := range events {
+			// 		if event.Data["Event"] == "PeerEntry" {
+			// 			log.Infof("SIPpeers ObjectName %s", event.Data["ObjectName"])
+			// 		}
+			// 	}
+			// 	log.Infof("*********************************************")
+			// }
+			res, events, err := a.SIPpeers()
 			if err != nil {
-				log.Error(err)
+				utils.Log.Errorf("sip peers error %+v", err)
 			} else {
-				log.Infof("*******************%d**************************", count)
-				log.Infof("SIPpeers res %+v", result)
-				log.Infof("SIPpeers events %d", len(events))
-				for _, event := range events {
-					if event.Data["Event"] == "PeerEntry" {
-						log.Infof("SIPpeers ObjectName %s", event.Data["ObjectName"])
-					}
+				utils.Log.Infof("sip res %+v", res)
+				for _, v := range events {
+					utils.Log.Infof("sip event %+v", v)
 				}
-				log.Infof("*********************************************")
 			}
 			count = count + 1
 		}
@@ -54,8 +64,6 @@ func main() {
 
 	go amiTest()
 
-	// ch := make(chan int)
-	// <-ch
 	select {}
 
 }

@@ -1,6 +1,7 @@
 package amigo
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -129,7 +130,6 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 		for {
 			select {
 			case msg := <-a.received:
-				utils.Log.Infof("socket received msg: %s", msg)
 				result = append(result, []byte(msg)...)
 				for {
 					index := strings.Index(string(result), utils.EOM)
@@ -164,11 +164,12 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 		}
 		if err != nil && err != io.EOF {
 			utils.Log.Errorf("socket  error %+v", err)
-			break
+			readErrChan <- errors.New("socket error")
+			return
 		}
-		utils.Log.Infof("socket send msg: %s", string(buf[:n]))
 		a.received <- string(buf[:n])
 	}
+
 }
 
 func (a *amiAdapter) writer(conn net.Conn, stop <-chan struct{}, writeErrChan chan error) {
