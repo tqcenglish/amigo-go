@@ -1,4 +1,4 @@
-module github.com/tqcenglish/ami-go
+module github.com/tqcenglish/amigo-go
 
 go 1.15
 
