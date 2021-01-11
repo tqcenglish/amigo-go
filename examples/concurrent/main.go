@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	amigo "github.com/tqcenglish/amigo-go"
 	"github.com/tqcenglish/amigo-go/utils"
@@ -11,7 +12,12 @@ import (
 var a *amigo.Amigo
 
 func amiTest() {
-	settings := &amigo.Settings{Host: "192.168.17.66", Port: "5038", Username: "openapi", Password: "e845116521d590069f285ddde46ee2cf"}
+	settings := &amigo.Settings{
+		Host:     "192.168.17.66",
+		Port:     "5038",
+		Username: "openapi",
+		Password: "e845116521d590069f285ddde46ee2cf",
+		LogLevel: logrus.InfoLevel}
 	a = amigo.New(settings)
 	a.EventOn(func(payload ...interface{}) {
 		log.Infof("ami event on %+v", payload[0])
