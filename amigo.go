@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tqcenglish/ami-go/events"
-	"github.com/tqcenglish/ami-go/parse"
-	"github.com/tqcenglish/ami-go/utils"
+	"github.com/tqcenglish/amigo-go/events"
+	"github.com/tqcenglish/amigo-go/parse"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 var (

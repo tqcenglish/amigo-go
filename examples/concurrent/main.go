@@ -4,8 +4,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	amigo "github.com/tqcenglish/ami-go"
-	"github.com/tqcenglish/ami-go/utils"
+	amigo "github.com/tqcenglish/amigo-go"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 var a *amigo.Amigo

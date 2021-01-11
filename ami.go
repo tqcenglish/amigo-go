@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tqcenglish/ami-go/events"
-	"github.com/tqcenglish/ami-go/utils"
+	"github.com/tqcenglish/amigo-go/events"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 type amiAdapter struct {

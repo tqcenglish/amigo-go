@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/tqcenglish/ami-go/utils"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 //Message ami 消息

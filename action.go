@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/tqcenglish/ami-go/utils"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 func (a *amiAdapter) pinger(stop <-chan struct{}, errChan chan error) {
