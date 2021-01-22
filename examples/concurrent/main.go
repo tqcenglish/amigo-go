@@ -16,7 +16,7 @@ func amiTest() {
 		Host:     "192.168.17.66",
 		Port:     "5038",
 		Username: "openapi",
-		Password: "e845116521d590069f285ddde46ee2cf",
+		Password: "",
 		LogLevel: logrus.InfoLevel}
 	a = amigo.New(settings)
 	a.EventOn(func(payload ...interface{}) {
