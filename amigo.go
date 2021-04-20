@@ -203,11 +203,11 @@ func (a *Amigo) onRawMessage(message string) {
 }
 func (a *Amigo) onRawResponse(response *parse.Response) {
 	actionID := response.Data["ActionID"]
-	if value, ok := response.Data["Message"]; ok && strings.Contains(value, "follow") {
+	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
 		a.responses[actionID].Data = response.Data
 	} else {
 		a.responses[actionID].Complete <- struct{}{}
-		a.responses[actionID].Data = (*response).Data
+		a.responses[actionID].Data = response.Data
 	}
 }
 func (a *Amigo) onRawEvent(event *parse.Event) {

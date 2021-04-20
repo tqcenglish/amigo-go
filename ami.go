@@ -137,8 +137,9 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 						// 获取结束位置
 						endIndex := index + len(utils.EOM)
 						skippedEolChars := 0
-						for endIndex+skippedEolChars+1 <= len(result) {
-							nextChar := result[endIndex+skippedEolChars+1]
+						nextIndex := endIndex + skippedEolChars + 1
+						for nextIndex < len(result) {
+							nextChar := result[nextIndex]
 							if nextChar == '\r' || nextChar == '\n' {
 								skippedEolChars++
 								continue
