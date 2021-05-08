@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "debug",
             "trace": "verbose",
-            "program": "${workspaceFolder}/examples/concurrent/main.go"
+            "program": "${workspaceFolder}/examples/main.go"
         }
     ]
 }

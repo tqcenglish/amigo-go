@@ -2,32 +2,23 @@ package amigo
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tqcenglish/amigo-go/events"
 	"github.com/tqcenglish/amigo-go/parse"
+	"github.com/tqcenglish/amigo-go/pkg"
 	"github.com/tqcenglish/amigo-go/utils"
 )
-
-var (
-	version         = "0.1.9"
-	errNotConnected = errors.New("Not connected to Asterisk")
-)
-
-type handlerFunc func(response parse.Response)
-type eventHandlerFunc func(event map[string]string)
 
 // Amigo is a main package struct
 type Amigo struct {
 	settings *Settings
 	ami      *amiAdapter
 
-	eventEmitter events.EventEmmiter
+	eventEmitter pkg.EventEmmiter
 
 	responses map[string]*parse.Response
 
@@ -54,9 +45,12 @@ type Settings struct {
 // Usage: New(username string, secret string, [host string, [port string]])
 // 建立连接
 func New(settings *Settings) *Amigo {
-	eventEmitter := events.New()
+	eventEmitter := pkg.New()
 
 	utils.NewLog(settings.LogLevel, settings.Report)
+	if(settings.DialTimeout == 0){
+		settings.DialTimeout = utils.DialTimeout
+	}
 
 	amiInstance := &Amigo{
 		settings:     settings,
@@ -66,19 +60,11 @@ func New(settings *Settings) *Amigo {
 		responses:    make(map[string]*parse.Response),
 	}
 
-	eventEmitter.On("error", func(payload ...interface{}) {
-		utils.Log.Errorf("ami error %s", payload[0].(string))
-		eventEmitter.Emit("AMI_Connect", "ami connect error")
-		if amiInstance.ami.reconnect {
+	amiInstance.ConnectOn(func(payload ...interface{}) {
+		status := payload[0].(pkg.ConnectStatus)
+		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
+			<- time.After(utils.ReconnectInterval)
 			amiInstance.initAMI()
-		}
-	})
-	eventEmitter.On("connect", func(payload ...interface{}) {
-		eventEmitter.Emit("AMI_Connect", payload[0].(string))
-
-		if err := amiInstance.login(); err != nil {
-			amiInstance.eventEmitter.Emit("error", fmt.Sprintf("Asterisk login: %s", err.Error()))
-			return
 		}
 	})
 
@@ -96,7 +82,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	utils.Log.Debugf("send action: %+v\n", action)
 	if !a.Connected() {
 		utils.Log.Warnf("ami not connected")
-		return nil, nil, errNotConnected
+		return nil, nil, utils.ErrNotConnected
 	}
 
 	actionID := utils.NewV4()
@@ -131,7 +117,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 		a.ami.reconnect = false
 	}
 	if len((*response).Data) == 0 {
-		return nil, nil, errors.New("不能等待到数据")
+		return nil, nil, errors.New("wait data failure")
 	}
 	return (*response).Data, (*response).Events, nil
 }
@@ -139,38 +125,18 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 // Connect with Asterisk.
 // If connect fails, will try to reconnect every second.
 func (a *Amigo) Connect() {
-	var connected bool
 	a.mutex.RLock()
-	connected = a.connected
-	a.mutex.RUnlock()
-	if connected {
+	if a.connected {
 		return
 	}
-
-	a.mutex.Lock()
-	a.connected = true
-	a.mutex.Unlock()
+	a.mutex.RUnlock()
 
 	a.initAMI()
+	go a.handleMsg()
 }
 
 func (a *Amigo) initAMI() {
-	am, err := newAMIAdapter(a.settings, a.eventEmitter)
-	if err != nil {
-		go a.eventEmitter.Emit("error", fmt.Sprintf("AMI Connect error: %s", err.Error()))
-	} else {
-		a.mutex.Lock()
-		a.ami = am
-		a.mutex.Unlock()
-		go func() {
-			for {
-				select {
-				case msg := <-a.ami.msg:
-					a.onRawMessage(msg)
-				}
-			}
-		}()
-	}
+	newAMIAdapter(a.settings, a.eventEmitter, a)
 }
 
 // Connected returns true if successfully connected and logged in Asterisk and false otherwise.
@@ -203,6 +169,10 @@ func (a *Amigo) onRawMessage(message string) {
 }
 func (a *Amigo) onRawResponse(response *parse.Response) {
 	actionID := response.Data["ActionID"]
+	if actionID == ""{
+		utils.Log.Warnf("No actionID Res %+v", response.Data)
+		return
+	}
 	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
 		a.responses[actionID].Data = response.Data
 	} else {
@@ -222,4 +192,10 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 		return
 	}
 	a.eventEmitter.Emit("namiEvent", event)
+}
+
+func (a *Amigo) handleMsg(){
+	for msg :=  range a.ami.msg{
+		a.onRawMessage(msg)
+	}
 }

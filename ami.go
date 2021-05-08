@@ -1,7 +1,6 @@
 package amigo
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -9,37 +8,43 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tqcenglish/amigo-go/events"
+	"github.com/tqcenglish/amigo-go/pkg"
 	"github.com/tqcenglish/amigo-go/utils"
 )
 
 type amiAdapter struct {
+	id string
+
 	received chan string
 	msg      chan string
 
-	id string
 
 	username string
 	password string
 
 	connected bool
 	reconnect bool
+	chanStop chan struct{}
 
 	dialString  string
 	dialTimeout time.Duration
 
 	actionsChan chan map[string]string
-	pingerChan  chan struct{}
 	mutex       *sync.RWMutex
+	amigo *Amigo
 
-	eventEmitter events.EventEmmiter
+	eventEmitter pkg.EventEmmiter
+
 }
 
-func newAMIAdapter(s *Settings, eventEmitter events.EventEmmiter) (*amiAdapter, error) {
-	a := &amiAdapter{
+func newAMIAdapter(s *Settings, eventEmitter pkg.EventEmmiter, amigo *Amigo) {
+	adapter := &amiAdapter{
 		dialString: fmt.Sprintf("%s:%s", s.Host, s.Port),
 		username:   s.Username,
 		password:   s.Password,
+
+		reconnect: true,
+		chanStop : make(chan struct{}),
 
 		received: make(chan string, 1024),
 		msg:      make(chan string, 1024),
@@ -47,71 +52,76 @@ func newAMIAdapter(s *Settings, eventEmitter events.EventEmmiter) (*amiAdapter, 
 		dialTimeout:  s.DialTimeout,
 		mutex:        &sync.RWMutex{},
 		eventEmitter: eventEmitter,
+		amigo: amigo,
 
 		actionsChan: make(chan map[string]string),
-		pingerChan:  make(chan struct{}),
 	}
+	amigo.ami = adapter
+	go adapter.initializeSocket()
 
-	go a.initializeSocket()
-
-	return a, nil
 }
 
 func (a *amiAdapter) initializeSocket() {
 	a.id = utils.NextID()
 	var err error
 	var conn net.Conn
+	
 	readErrChan := make(chan error)
 	writeErrChan := make(chan error)
 	pingErrChan := make(chan error)
-	chanStop := make(chan struct{})
 
-	for {
-		conn, err = a.openConnection()
-		if err == nil {
-			defer conn.Close()
-			greetings := make([]byte, 100)
-			n, err := conn.Read(greetings)
-			if err != nil {
-				a.eventEmitter.Emit("error", fmt.Sprintf("Asterisk connection error: %s", err.Error()))
-				time.Sleep(time.Second)
-				return
-			}
-
-			if n > 2 {
-				greetings = greetings[:n-2]
-			}
-
-			a.mutex.Lock()
-			a.connected = true
-			a.mutex.Unlock()
-			go a.eventEmitter.Emit("connect", string(greetings))
-			break
-		}
-
-		a.eventEmitter.Emit("error", "AMI Reconnect failed")
+	conn, err = a.openConnection()
+	if(err != nil) {
+		utils.Log.Errorf("ami init socket %s", err)
+		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_Network_Error)
+		return
+	}
+	defer conn.Close()
+	greetings := make([]byte, 100)
+	n, err := conn.Read(greetings)
+	if err != nil {
+		utils.Log.Errorf("ami read socket %s", err)
+		a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
+		time.Sleep(time.Second)
 		return
 	}
 
-	go a.reader(conn, chanStop, readErrChan)
-	go a.writer(conn, chanStop, writeErrChan)
-	// if s.Keepalive {
-	// 	go a.pinger(chanStop, pingErrChan)
-	// }
+	if n > 2 {
+		greetings = greetings[:n-2]
+	}
 
+	a.mutex.Lock()
+	a.connected = true
+	a.mutex.Unlock()
+
+	utils.Log.Infof("ami connect: %s", string(greetings))
+
+	go a.reader(conn, a.chanStop, readErrChan)
+	go a.writer(conn, a.chanStop, writeErrChan)
+
+	go func() {
+		if err := a.login(); err != nil {
+			utils.Log.Errorf("ami login %s", pkg.Connect_Password_Error)
+			a.reconnect = false
+			return
+		}
+		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_OK)
+		a.pinger(a.chanStop, pingErrChan)
+	}()
+	
 	select {
 	case err = <-readErrChan:
 	case err = <-writeErrChan:
 	case err = <-pingErrChan:
 	}
 
-	close(chanStop)
+	close(a.chanStop)
 	a.mutex.Lock()
 	a.connected = false
 	a.mutex.Unlock()
 
-	a.eventEmitter.Emit("error", fmt.Sprintf("AMI TCP ERROR: %s", err.Error()))
-	time.Sleep(time.Second)
+	utils.Log.Errorf("ami read/write/ping socket %s", err.Error())
+	a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
 }
 
 func (a *amiAdapter) online() bool {
@@ -127,9 +137,7 @@ func (a *amiAdapter) openConnection() (net.Conn, error) {
 func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan chan error) {
 	go func() {
 		var result []byte
-		for {
-			select {
-			case msg := <-a.received:
+			for msg := range a.received {
 				result = append(result, []byte(msg)...)
 				for {
 					index := strings.Index(string(result), utils.EOM)
@@ -153,7 +161,7 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 					break
 				}
 			}
-		}
+
 	}()
 
 	// 持续读取数据
@@ -164,8 +172,7 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 			continue
 		}
 		if err != nil && err != io.EOF {
-			utils.Log.Errorf("socket  error %+v", err)
-			readErrChan <- errors.New("socket error")
+			readErrChan <- err
 			return
 		}
 		a.received <- string(buf[:n])

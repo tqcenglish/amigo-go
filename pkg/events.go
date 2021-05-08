@@ -1,5 +1,5 @@
 // Package events provides simple EventEmmiter support for Go Programming Language
-package events
+package pkg
 
 import (
 	"log"
@@ -149,7 +149,7 @@ func (e *emmiter) Emit(evt EventName, data ...interface{}) {
 	if e.evtListeners == nil {
 		return // has no listeners to emit/speak yet
 	}
-	if listeners := e.evtListeners[evt]; listeners != nil && len(listeners) > 0 { // len() should be just fine, but for any case on future...
+	if listeners := e.evtListeners[evt]; len(listeners) > 0 { // len() should be just fine, but for any case on future...
 		for i := range listeners {
 			l := listeners[i]
 			if l != nil {
@@ -170,7 +170,7 @@ func (e *emmiter) EventNames() []EventName {
 		return nil
 	}
 
-	names := make([]EventName, e.Len(), e.Len())
+	names := make([]EventName, e.Len())
 	i := 0
 	for k := range e.evtListeners {
 		names[i] = k
