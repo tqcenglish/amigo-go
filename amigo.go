@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tqcenglish/amigo-go/parse"
 	"github.com/tqcenglish/amigo-go/pkg"
+	"github.com/tqcenglish/amigo-go/pkg/parse"
 	"github.com/tqcenglish/amigo-go/utils"
 )
 
@@ -176,6 +176,10 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
 		a.responses[actionID].Data = response.Data
 	} else {
+		if a.responses[actionID] == nil {
+			logrus.Errorf("a.responses[actionID] is nil, actionID: %s responses: %+v", actionID, a.responses)
+		}
+
 		a.responses[actionID].Complete <- struct{}{}
 		a.responses[actionID].Data = response.Data
 	}

@@ -12,9 +12,7 @@ import (
 var a *amigo.Amigo
 
 func amiTest() {
-
 	start := make(chan bool, 1)
-
 	settings := &amigo.Settings{
 		Host:     "192.168.17.66",
 		Port:     "5038",

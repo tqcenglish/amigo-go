@@ -21,5 +21,5 @@ func NewEvent(data string) *Event {
 
 //String 定义 toString
 func (event *Event) String() string {
-	return fmt.Sprintf("{Event:%s}", event.Data["Event"])
+	return fmt.Sprintf("%+v", event.Data)
 }
