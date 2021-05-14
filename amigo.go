@@ -178,6 +178,7 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	} else {
 		if a.responses[actionID] == nil {
 			logrus.Errorf("a.responses[actionID] is nil, actionID: %s responses: %+v", actionID, a.responses)
+			return
 		}
 
 		a.responses[actionID].Complete <- struct{}{}
