@@ -20,6 +20,6 @@ func NewEvent(data string) *Event {
 }
 
 //String 定义 toString
-func (event *Event) String() string {
+func (event Event) String() string {
 	return fmt.Sprintf("%+v", event.Data)
 }

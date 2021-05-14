@@ -10,7 +10,7 @@ import (
 //Message ami 消息
 type Message struct {
 	lines    []string
-	variable map[string]string
+	// variable map[string]string
 	Data     map[string]string
 }
 
@@ -34,4 +34,8 @@ func (message *Message) unMarshall(data string) {
 		value := strings.Join(parts[1:], ":")
 		message.Data[key] = strings.TrimSpace(value)
 	}
+}
+
+func (message Message) String() {
+	log.Infof("%+v", message.Data)
 }
