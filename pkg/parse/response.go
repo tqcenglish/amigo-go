@@ -26,6 +26,6 @@ func NewResponse(data string) *Response {
 }
 
 //String 定义 toString
-func (res *Response) String() string {
+func (res Response) String() string {
 	return fmt.Sprintf("{Response: %s, ActionID: %s, Message: %s, Event:%+v}", res.Data["Response"], res.Data["ActionID"], res.Data["Message"], res.Events)
 }
