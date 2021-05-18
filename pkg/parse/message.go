@@ -2,6 +2,7 @@ package parse
 
 import (
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/tqcenglish/amigo-go/utils"
@@ -12,6 +13,7 @@ type Message struct {
 	lines    []string
 	// variable map[string]string
 	Data     map[string]string
+	sync.RWMutex
 }
 
 func (message *Message) unMarshall(data string) {

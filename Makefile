@@ -1,2 +1,2 @@
 all:
-	go run examples/main.go
+	go run -race examples/main.go

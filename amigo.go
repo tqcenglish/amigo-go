@@ -20,7 +20,7 @@ type Amigo struct {
 
 	eventEmitter pkg.EventEmmiter
 
-	responses map[string]*parse.Response
+	responses sync.Map
 
 	connected bool
 	mutex     *sync.RWMutex
@@ -57,7 +57,6 @@ func New(settings *Settings) *Amigo {
 		eventEmitter: eventEmitter,
 		mutex:        &sync.RWMutex{},
 		connected:    false,
-		responses:    make(map[string]*parse.Response),
 	}
 
 	amiInstance.ConnectOn(func(payload ...interface{}) {
@@ -87,39 +86,36 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 
 	actionID := utils.NewV4()
 	action["ActionID"] = actionID
-	a.responses[actionID] = parse.NewResponse("")
+	a.responses.Store(actionID, parse.NewResponse(""))
 	a.ami.exec(action)
 
 	// 超时处理
 	time.AfterFunc(time.Duration(utils.ActionTimeout)*time.Second, func() {
-		a.mutex.RLock()
-		_, ok := a.responses[actionID]
-		a.mutex.RUnlock()
-		if ok {
-			a.mutex.Lock()
-			if res, ok := a.responses[actionID]; ok {
-				utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
-				res.Complete <- struct{}{}
-				a.mutex.Unlock()
-				return
-			}
+		if res, ok := a.responses.Load(actionID); ok {
+			utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
+			res.(*parse.Response).Complete <- struct{}{}
 			a.mutex.Unlock()
+			return
 		}
 	})
+	resInterface, _ := a.responses.Load(actionID)
+	res := resInterface.(*parse.Response)
+	<-res.Complete
 
-	<-a.responses[actionID].Complete
-	response := a.responses[actionID]
+	close(res.Complete)
+	a.responses.Delete(actionID)
 
-	close(a.responses[actionID].Complete)
-	delete(a.responses, actionID)
-
-	if response.Data["Action"] == "logoff" {
+	res.RLock()
+	if res.Data["Action"] == "logoff" {
 		a.ami.reconnect = false
 	}
-	if len((*response).Data) == 0 {
+	dataLen := len(res.Data)
+	res.RUnlock()
+	
+	if dataLen == 0 {
 		return nil, nil, errors.New("wait data failure")
 	}
-	return (*response).Data, (*response).Events, nil
+	return res.Data, res.Events, nil
 }
 
 // Connect with Asterisk.
@@ -173,28 +169,35 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 		utils.Log.Warnf("No actionID Res %+v", response.Data)
 		return
 	}
+	
+	resInterface, existRes := a.responses.Load(actionID)
+	if !existRes {
+		utils.Log.Errorf("a.responses[actionID] is nil, actionID: %s", actionID)
+		return
+	}
+	
+	res := resInterface.(*parse.Response)
 	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
-		a.responses[actionID].Data = response.Data
+		res.Data = response.Data
 	} else {
-		if a.responses[actionID] == nil {
-			logrus.Errorf("a.responses[actionID] is nil, actionID: %s responses: %+v", actionID, a.responses)
-			return
-		}
-
-		a.responses[actionID].Complete <- struct{}{}
-		a.responses[actionID].Data = response.Data
+		res.Complete <- struct{}{}
+		res.Lock()
+		res.Data = response.Data
+		res.Unlock()
 	}
 }
 func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
-		if _, existRes := a.responses[actionID]; existRes {
-			response := a.responses[actionID]
+		if resInterface, existRes := a.responses.Load(actionID); existRes {
+			response :=  resInterface.(*parse.Response)
 			response.Events = append(response.Events, *event)
+
+			if strings.Contains(event.Data["Event"], "Complete") || strings.Contains(event.Data["Event"], "DBGetResponse") || (event.Data["EventList"] != "" && strings.Contains(event.Data["EventList"], "Complete")) {
+				response.Complete <- struct{}{}
+			}
+		}else{
+			utils.Log.Warn("actionID %s can't get response", actionID)
 		}
-		if strings.Contains(event.Data["Event"], "Complete") || strings.Contains(event.Data["Event"], "DBGetResponse") || (event.Data["EventList"] != "" && strings.Contains(event.Data["EventList"], "Complete")) {
-			a.responses[actionID].Complete <- struct{}{}
-		}
-		return
 	}
 	a.eventEmitter.Emit("namiEvent", event)
 }

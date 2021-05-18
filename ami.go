@@ -56,7 +56,11 @@ func newAMIAdapter(s *Settings, eventEmitter pkg.EventEmmiter, amigo *Amigo) {
 
 		actionsChan: make(chan map[string]string),
 	}
+
+	amigo.mutex.Lock()
 	amigo.ami = adapter
+	amigo.mutex.Unlock()
+	
 	go adapter.initializeSocket()
 
 }
