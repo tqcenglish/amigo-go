@@ -2,7 +2,6 @@ package amigo
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -46,9 +45,10 @@ type Settings struct {
 // 建立连接
 func New(settings *Settings) *Amigo {
 	eventEmitter := pkg.New()
+	parse.Compile()
 
 	utils.NewLog(settings.LogLevel, settings.Report)
-	if(settings.DialTimeout == 0){
+	if settings.DialTimeout == 0 {
 		settings.DialTimeout = utils.DialTimeout
 	}
 
@@ -62,7 +62,7 @@ func New(settings *Settings) *Amigo {
 	amiInstance.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
 		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
-			<- time.After(utils.ReconnectInterval)
+			<-time.After(utils.ReconnectInterval)
 			amiInstance.initAMI()
 		}
 	})
@@ -94,7 +94,6 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 		if res, ok := a.responses.Load(actionID); ok {
 			utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
 			res.(*parse.Response).Complete <- struct{}{}
-			a.mutex.Unlock()
 			return
 		}
 	})
@@ -111,7 +110,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	}
 	dataLen := len(res.Data)
 	res.RUnlock()
-	
+
 	if dataLen == 0 {
 		return nil, nil, errors.New("wait data failure")
 	}
@@ -128,7 +127,6 @@ func (a *Amigo) Connect() {
 	a.mutex.RUnlock()
 
 	a.initAMI()
-	go a.handleMsg()
 }
 
 func (a *Amigo) initAMI() {
@@ -153,10 +151,10 @@ func (a *Amigo) ConnectOn(fn func(...interface{})) {
 }
 
 func (a *Amigo) onRawMessage(message string) {
-	if ok, _ := regexp.Match(`^Event: `, []byte(message)); ok {
+	if ok := parse.EventRegexp.MatchString(message); ok {
 		event := parse.NewEvent(message)
 		a.onRawEvent(event)
-	} else if ok, _ := regexp.Match(`^Response: `, []byte(message)); ok {
+	} else if ok := parse.ResponseRegexp.MatchString(message); ok {
 		response := parse.NewResponse(message)
 		a.onRawResponse(response)
 	} else {
@@ -165,17 +163,17 @@ func (a *Amigo) onRawMessage(message string) {
 }
 func (a *Amigo) onRawResponse(response *parse.Response) {
 	actionID := response.Data["ActionID"]
-	if actionID == ""{
+	if actionID == "" {
 		utils.Log.Warnf("No actionID Res %+v", response.Data)
 		return
 	}
-	
+
 	resInterface, existRes := a.responses.Load(actionID)
 	if !existRes {
 		utils.Log.Errorf("a.responses[actionID] is nil, actionID: %s", actionID)
 		return
 	}
-	
+
 	res := resInterface.(*parse.Response)
 	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
 		res.Data = response.Data
@@ -189,21 +187,26 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
 		if resInterface, existRes := a.responses.Load(actionID); existRes {
-			response :=  resInterface.(*parse.Response)
+			response := resInterface.(*parse.Response)
 			response.Events = append(response.Events, *event)
 
 			if strings.Contains(event.Data["Event"], "Complete") || strings.Contains(event.Data["Event"], "DBGetResponse") || (event.Data["EventList"] != "" && strings.Contains(event.Data["EventList"], "Complete")) {
 				response.Complete <- struct{}{}
 			}
-		}else{
+		} else {
 			utils.Log.Warn("actionID %s can't get response", actionID)
 		}
 	}
 	a.eventEmitter.Emit("namiEvent", event)
 }
 
-func (a *Amigo) handleMsg(){
-	for msg :=  range a.ami.msg{
-		a.onRawMessage(msg)
+func (a *Amigo) handleMsg(stop <-chan struct{}) {
+	for {
+		select {
+		case <-stop:
+			return
+		case msg := <-a.ami.msg:
+			a.onRawMessage(msg)
+		}
 	}
 }

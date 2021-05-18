@@ -11,7 +11,7 @@ func (a *amiAdapter) pinger(stop <-chan struct{}, errChan chan error) {
 	ticker := time.NewTicker(utils.PingInterval)
 	defer ticker.Stop()
 	ping := map[string]string{
-		"Action": "Ping", 
+		"Action": "Ping",
 	}
 	for {
 		select {

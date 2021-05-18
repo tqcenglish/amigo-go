@@ -3,10 +3,10 @@ package pkg
 type ConnectStatus int32
 
 const (
-	Connect_OK  ConnectStatus = 0
-	Connect_Password_Error  ConnectStatus = 1
-	Connect_Network_Error  ConnectStatus = 2
-	Disconnect_Network_Error  ConnectStatus = 3
+	Connect_OK               ConnectStatus = 0
+	Connect_Password_Error   ConnectStatus = 1
+	Connect_Network_Error    ConnectStatus = 2
+	Disconnect_Network_Error ConnectStatus = 3
 )
 
 func (status ConnectStatus) String() string {

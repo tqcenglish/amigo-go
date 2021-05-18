@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	amigo "github.com/tqcenglish/amigo-go"
 	"github.com/tqcenglish/amigo-go/pkg"
+	"github.com/tqcenglish/amigo-go/utils"
 )
 
 var a *amigo.Amigo
@@ -25,13 +26,13 @@ func amiTest() {
 	})
 	a.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
-		if(status == pkg.Connect_OK){
+		if status == pkg.Connect_OK {
 			start <- true
 		}
 	})
 	a.Connect()
 
-	<- start
+	<-start
 
 	// 每 10s 运行
 	go func() {
@@ -60,5 +61,6 @@ func amiTest() {
 
 func main() {
 	go amiTest()
+	go utils.HTTPServerPProf()
 	select {}
 }

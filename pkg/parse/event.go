@@ -1,6 +1,12 @@
 package parse
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
+
+var EventRegexp *regexp.Regexp
+var ResponseRegexp *regexp.Regexp
 
 //Event 事件
 type Event struct {
@@ -22,4 +28,9 @@ func NewEvent(data string) *Event {
 //String 定义 toString
 func (event Event) String() string {
 	return fmt.Sprintf("%+v", event.Data)
+}
+
+func Compile() {
+	EventRegexp, _ = regexp.Compile(`^Event: `)
+	ResponseRegexp, _ = regexp.Compile(`^Response: `)
 }

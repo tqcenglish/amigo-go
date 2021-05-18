@@ -10,9 +10,9 @@ import (
 
 //Message ami 消息
 type Message struct {
-	lines    []string
+	lines []string
 	// variable map[string]string
-	Data     map[string]string
+	Data map[string]string
 	sync.RWMutex
 }
 

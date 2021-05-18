@@ -26,14 +26,14 @@ func amiTest() {
 	})
 	a.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
-		if(status == pkg.Connect_OK){
+		if status == pkg.Connect_OK {
 			start <- true
 		}
 	})
 	a.Connect()
 
 	fmt.Print("wait start start\n")
-	<- start
+	<-start
 	fmt.Print("wait start end\n")
 
 	// 每 10s 运行

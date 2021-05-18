@@ -12,7 +12,7 @@ const (
 	//DialTimeout TCP Dial
 	DialTimeout = 5 * time.Second
 	//ReconnectInterval reconnect interval
-	ReconnectInterval = 5 * time.Second 
+	ReconnectInterval = 5 * time.Second
 	//PingInterval Ping
 	PingInterval = 5 * time.Second
 
