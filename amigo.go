@@ -196,6 +196,7 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 		} else {
 			utils.Log.Warn("actionID %s can't get response", actionID)
 		}
+		return
 	}
 	a.eventEmitter.Emit("namiEvent", event)
 }
