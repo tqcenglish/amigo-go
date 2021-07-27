@@ -62,6 +62,7 @@ func New(settings *Settings) *Amigo {
 	amiInstance.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
 		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
+			amiInstance.ami.chanStop <- struct{}{}
 			<-time.After(utils.ReconnectInterval)
 			amiInstance.initAMI()
 		}
