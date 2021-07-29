@@ -98,13 +98,23 @@ func (a *amiAdapter) initializeSocket() {
 
 	utils.Log.Infof("ami connect: %s", string(greetings))
 
-	go a.reader(conn, a.chanStop, readErrChan)
-	go a.writer(conn, a.chanStop, writeErrChan)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		a.reader(conn, a.chanStop, readErrChan)
+	}()
+	go func() {
+		defer wg.Done()
+		a.writer(conn, a.chanStop, writeErrChan)
+	}()
 
 	go func() {
+		defer wg.Done()
 		if err := a.login(); err != nil {
 			utils.Log.Errorf("ami login %s", pkg.Connect_Password_Error)
 			a.reconnect = false
+
 			return
 		}
 		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_OK)
@@ -118,6 +128,7 @@ func (a *amiAdapter) initializeSocket() {
 	}
 
 	close(a.chanStop)
+	wg.Wait()
 	a.mutex.Lock()
 	a.connected = false
 	a.mutex.Unlock()
@@ -139,29 +150,35 @@ func (a *amiAdapter) openConnection() (net.Conn, error) {
 func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan chan error) {
 	go func() {
 		var result []byte
-		for msg := range a.received {
-			result = append(result, []byte(msg)...)
-			for {
-				index := strings.Index(string(result), utils.EOM)
-				if index != -1 {
-					// 获取结束位置
-					endIndex := index + len(utils.EOM)
-					skippedEolChars := 0
-					nextIndex := endIndex + skippedEolChars + 1
-					for nextIndex < len(result) {
-						nextChar := result[nextIndex]
-						if nextChar == '\r' || nextChar == '\n' {
-							skippedEolChars++
-							continue
+		for {
+			select {
+			case <-stop:
+				return
+			case msg := <-a.received:
+				result = append(result, []byte(msg)...)
+				for {
+					index := strings.Index(string(result), utils.EOM)
+					if index != -1 {
+						// 获取结束位置
+						endIndex := index + len(utils.EOM)
+						skippedEolChars := 0
+						nextIndex := endIndex + skippedEolChars + 1
+						for nextIndex < len(result) {
+							nextChar := result[nextIndex]
+							if nextChar == '\r' || nextChar == '\n' {
+								skippedEolChars++
+								continue
+							}
+							break
 						}
-						break
+						a.msg <- string(result[:index])
+						result = result[endIndex:]
+						continue
 					}
-					a.msg <- string(result[:index])
-					result = result[endIndex:]
-					continue
+					break
 				}
-				break
 			}
+
 		}
 
 	}()
@@ -169,15 +186,22 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 	// 持续读取数据
 	buf := make([]byte, 1024*4)
 	for {
-		n, err := conn.Read(buf)
-		if err == io.EOF {
-			continue
-		}
-		if err != nil && err != io.EOF {
-			readErrChan <- err
+		select {
+		case <-stop:
 			return
+		default:
+			n, err := conn.Read(buf)
+			if err == io.EOF {
+				continue
+			}
+			if err != nil && err != io.EOF {
+				close(a.received)
+				readErrChan <- err
+				return
+			}
+			a.received <- string(buf[:n])
 		}
-		a.received <- string(buf[:n])
+
 	}
 
 }
