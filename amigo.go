@@ -43,11 +43,16 @@ type Settings struct {
 // New creates new Amigo struct with credentials provided and returns pointer to it
 // Usage: New(username string, secret string, [host string, [port string]])
 // 建立连接
-func New(settings *Settings) *Amigo {
+func New(settings *Settings, Log *logrus.Entry) *Amigo {
+	if Log != nil {
+		utils.Log = Log
+	} else {
+		utils.NewLog(settings.LogLevel, settings.Report)
+	}
+
 	eventEmitter := pkg.New()
 	parse.Compile()
 
-	utils.NewLog(settings.LogLevel, settings.Report)
 	if settings.DialTimeout == 0 {
 		settings.DialTimeout = utils.DialTimeout
 	}
@@ -62,7 +67,6 @@ func New(settings *Settings) *Amigo {
 	amiInstance.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
 		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
-			amiInstance.ami.chanStop <- struct{}{}
 			<-time.After(utils.ReconnectInterval)
 			amiInstance.initAMI()
 		}
@@ -90,14 +94,25 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	a.responses.Store(actionID, parse.NewResponse(""))
 	a.ami.exec(action)
 
-	// 超时处理
-	time.AfterFunc(time.Duration(utils.ActionTimeout)*time.Second, func() {
-		if res, ok := a.responses.Load(actionID); ok {
-			utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
-			res.(*parse.Response).Complete <- struct{}{}
-			return
+	// 响应处理(1.超时 2.连接断开)
+	go func() {
+		select {
+		case <-a.ami.chanStop:
+			if res, ok := a.responses.Load(actionID); ok {
+				utils.Log.Warn("action wait complete chan failure chanstop")
+				res.(*parse.Response).Complete <- struct{}{}
+				return
+			}
+		case <-time.After(time.Duration(utils.ActionTimeout) * time.Second):
+			if res, ok := a.responses.Load(actionID); ok {
+				utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
+				res.(*parse.Response).Complete <- struct{}{}
+				return
+			}
+
 		}
-	})
+	}()
+
 	resInterface, _ := a.responses.Load(actionID)
 	res := resInterface.(*parse.Response)
 	<-res.Complete

@@ -68,9 +68,9 @@ func (a *amiAdapter) initializeSocket() {
 	var err error
 	var conn net.Conn
 
-	readErrChan := make(chan error)
-	writeErrChan := make(chan error)
-	pingErrChan := make(chan error)
+	readErrChan := make(chan error, 1)
+	writeErrChan := make(chan error, 1)
+	pingErrChan := make(chan error, 1)
 
 	conn, err = a.openConnection()
 	if err != nil {
@@ -79,6 +79,7 @@ func (a *amiAdapter) initializeSocket() {
 		return
 	}
 	defer conn.Close()
+
 	greetings := make([]byte, 100)
 	n, err := conn.Read(greetings)
 	if err != nil {
@@ -104,6 +105,7 @@ func (a *amiAdapter) initializeSocket() {
 		defer wg.Done()
 		a.reader(conn, a.chanStop, readErrChan)
 	}()
+
 	go func() {
 		defer wg.Done()
 		a.writer(conn, a.chanStop, writeErrChan)
@@ -114,7 +116,6 @@ func (a *amiAdapter) initializeSocket() {
 		if err := a.login(); err != nil {
 			utils.Log.Errorf("ami login %s", pkg.Connect_Password_Error)
 			a.reconnect = false
-
 			return
 		}
 		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_OK)
@@ -123,17 +124,21 @@ func (a *amiAdapter) initializeSocket() {
 
 	select {
 	case err = <-readErrChan:
+		utils.Log.Error("get read err chan message")
 	case err = <-writeErrChan:
+		utils.Log.Error("get write err chan message")
 	case err = <-pingErrChan:
+		utils.Log.Error("get ping err chan message")
 	}
-
+	utils.Log.Errorf("ami read/write/ping socket %s", err.Error())
 	close(a.chanStop)
+
 	wg.Wait()
+
 	a.mutex.Lock()
 	a.connected = false
 	a.mutex.Unlock()
 
-	utils.Log.Errorf("ami read/write/ping socket %s", err.Error())
 	a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
 }
 
@@ -153,6 +158,7 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 		for {
 			select {
 			case <-stop:
+				utils.Log.Info("stop read parse goroutine")
 				return
 			case msg := <-a.received:
 				result = append(result, []byte(msg)...)
@@ -188,6 +194,7 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 	for {
 		select {
 		case <-stop:
+			utils.Log.Info("stop read goroutine")
 			return
 		default:
 			n, err := conn.Read(buf)
@@ -210,6 +217,7 @@ func (a *amiAdapter) writer(conn net.Conn, stop <-chan struct{}, writeErrChan ch
 	for {
 		select {
 		case <-stop:
+			utils.Log.Info("stop write goroutine")
 			return
 		case action := <-a.actionsChan:
 			if action[utils.AmigoConnIDKey] != a.id {

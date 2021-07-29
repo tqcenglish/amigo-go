@@ -10,17 +10,19 @@ import (
 func (a *amiAdapter) pinger(stop <-chan struct{}, errChan chan error) {
 	ticker := time.NewTicker(utils.PingInterval)
 	defer ticker.Stop()
-	ping := map[string]string{
-		"Action": "Ping",
-	}
 	for {
 		select {
 		case <-stop:
+			utils.Log.Info("stop ping goroutine")
 			return
 		case <-ticker.C:
 		}
 
+		ping := map[string]string{
+			"Action": "Ping",
+		}
 		if _, _, err := a.amigo.Send(ping); err != nil {
+			utils.Log.Errorf("ping error %+v", err)
 			errChan <- errors.New("ping timeout")
 		}
 	}
