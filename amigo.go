@@ -210,7 +210,7 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 				response.Complete <- struct{}{}
 			}
 		} else {
-			utils.Log.Warn("actionID %s can't get response", actionID)
+			utils.Log.Warnf("actionID %s can't get response", actionID)
 		}
 		return
 	}
