@@ -99,13 +99,13 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 		select {
 		case <-a.ami.chanStop:
 			if res, ok := a.responses.Load(actionID); ok {
-				utils.Log.Warn("action wait complete chan failure chanstop")
+				utils.Log.Warnf("action %s wait complete chan failure CHAN-STOP", actionID)
 				res.(*parse.Response).Complete <- struct{}{}
 				return
 			}
 		case <-time.After(time.Duration(utils.ActionTimeout) * time.Second):
 			if res, ok := a.responses.Load(actionID); ok {
-				utils.Log.Warnf("action wait complete chan failure ActionTimeout: %d", utils.ActionTimeout)
+				utils.Log.Warnf("action %s wait complete chan failure ActionTimeout: %d", actionID, utils.ActionTimeout)
 				res.(*parse.Response).Complete <- struct{}{}
 				return
 			}
@@ -128,7 +128,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	res.RUnlock()
 
 	if dataLen == 0 {
-		return nil, nil, errors.New("wait data failure")
+		return nil, nil, errors.New("wait complete response failure")
 	}
 	return res.Data, res.Events, nil
 }
