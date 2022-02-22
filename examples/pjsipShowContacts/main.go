@@ -14,12 +14,12 @@ var a *amigo.Amigo
 func amiTest() {
 	start := make(chan bool, 1)
 	settings := &amigo.Settings{
-		Host:     "192.168.11.150",
+		Host:     "192.168.17.168",
 		Port:     "5038",
 		Username: "admin",
 		Password: "admin",
 		LogLevel: log.WarnLevel}
-	a = amigo.New(settings)
+	a = amigo.New(settings, nil)
 	log.SetLevel(log.InfoLevel)
 	a.EventOn(func(payload ...interface{}) {
 		log.Infof("Event on %+v", payload[0])
@@ -34,13 +34,13 @@ func amiTest() {
 
 	<-start
 
-	// 每 10s 运行
+	// 每 60s 运行
 	go func() {
 		count := 0
 		for {
 			now := time.Now()
 			// 计算下一个零点
-			next := now.Add(time.Second * 6)
+			next := now.Add(time.Second * 60)
 			t := time.NewTimer(next.Sub(now))
 			<-t.C
 

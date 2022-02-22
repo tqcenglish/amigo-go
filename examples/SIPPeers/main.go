@@ -14,12 +14,12 @@ var a *amigo.Amigo
 func amiTest() {
 	start := make(chan bool, 1)
 	settings := &amigo.Settings{
-		Host:     "192.168.17.66",
+		Host:     "192.168.17.168",
 		Port:     "5038",
 		Username: "openapi",
 		Password: "e845116521d590069f285ddde46ee2cf",
 		LogLevel: log.WarnLevel}
-	a = amigo.New(settings)
+	a = amigo.New(settings, nil)
 	log.SetLevel(log.InfoLevel)
 	a.EventOn(func(payload ...interface{}) {
 		log.Infof("Event on %+v", payload[0])
