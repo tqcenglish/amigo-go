@@ -1,6 +1,7 @@
 package parse
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -34,10 +35,16 @@ func (message *Message) unMarshall(data string) {
 		}
 		key := strings.ReplaceAll(strings.TrimSpace(parts[0]), "-", "")
 		value := strings.Join(parts[1:], ":")
-		message.Data[key] = strings.TrimSpace(value)
+		// 存在相同 key, 累加到 value
+		// message.Data[key] = strings.TrimSpace(value)
+		if oldValue, ok := message.Data[key]; ok {
+			message.Data[key] = fmt.Sprintf("%s\n%s", oldValue, strings.TrimSpace(value))
+		} else {
+			message.Data[key] = strings.TrimSpace(value)
+		}
 	}
 }
 
-func (message Message) String() {
+func (message *Message) String() {
 	log.Infof("%+v", message.Data)
 }
