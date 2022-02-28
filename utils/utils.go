@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync/atomic"
 )
 
@@ -52,15 +53,43 @@ func SetField(obj interface{}, name string, value interface{}) error {
 	}
 
 	if !structFieldValue.CanSet() {
-		return fmt.Errorf("Cannot set %s field value", name)
+		return fmt.Errorf("cannot set %s field value", name)
 	}
 
 	structFieldType := structFieldValue.Type()
 	val := reflect.ValueOf(value)
 	if structFieldType != val.Type() {
-		return errors.New("Provided value type didn't match obj field type")
+		return errors.New("provided value type didn't match obj field type")
 	}
 
 	structFieldValue.Set(val)
 	return nil
+}
+
+//IsResponse 通过 Message 判断当前响应属于 Event 还是 Response
+func IsResponse(message string) bool {
+	if strings.Contains(message, "Command output follows") {
+		return true
+	}
+	if strings.Contains(message, "follow") {
+		return false
+	}
+	if strings.Contains(message, "Follow") {
+		return false
+	}
+	return true
+}
+
+//EventComplete 判断事件是否结束
+func EventComplete(event, list string) bool {
+	if strings.Contains(event, "Complete") {
+		return true
+	}
+	if strings.Contains(event, "DBGetResponse") {
+		return true
+	}
+	if list != "" && strings.Contains(list, "Complete") {
+		return true
+	}
+	return false
 }

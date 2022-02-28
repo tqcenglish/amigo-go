@@ -2,7 +2,6 @@ package amigo
 
 import (
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -191,14 +190,15 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	}
 
 	res := resInterface.(*parse.Response)
-	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow") || strings.Contains(value, "follows")) {
+	if value, ok := response.Data["Message"]; ok && !utils.IsResponse(value) {
 		res.Data = response.Data
-	} else {
-		res.Complete <- struct{}{}
-		res.Lock()
-		res.Data = response.Data
-		res.Unlock()
+		return
 	}
+
+	res.Complete <- struct{}{}
+	res.Lock()
+	res.Data = response.Data
+	res.Unlock()
 }
 func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
@@ -206,7 +206,7 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 			response := resInterface.(*parse.Response)
 			response.Events = append(response.Events, *event)
 
-			if strings.Contains(event.Data["Event"], "Complete") || strings.Contains(event.Data["Event"], "DBGetResponse") || (event.Data["EventList"] != "" && strings.Contains(event.Data["EventList"], "Complete")) {
+			if utils.EventComplete(event.Data["Event"], event.Data["EventList"]) {
 				response.Complete <- struct{}{}
 			}
 		} else {
