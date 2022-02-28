@@ -103,9 +103,9 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 				res.(*parse.Response).Complete <- struct{}{}
 				return
 			}
-		case <-time.After(time.Duration(utils.ActionTimeout) * time.Second):
+		case <-time.After(utils.ActionTimeout * time.Second):
 			if res, ok := a.responses.Load(actionID); ok {
-				utils.Log.Warnf("action %s wait complete chan failure ActionTimeout: %d", actionID, utils.ActionTimeout)
+				utils.Log.Warnf("action %s:%s wait complete chan failure ActionTimeout: %d", action["action"], actionID, utils.ActionTimeout)
 				res.(*parse.Response).Complete <- struct{}{}
 				return
 			}
@@ -191,7 +191,7 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	}
 
 	res := resInterface.(*parse.Response)
-	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow")) {
+	if value, ok := response.Data["Message"]; ok && (strings.Contains(value, "follow") || strings.Contains(value, "Follow") || strings.Contains(value, "follows")) {
 		res.Data = response.Data
 	} else {
 		res.Complete <- struct{}{}
