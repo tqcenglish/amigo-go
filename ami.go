@@ -199,10 +199,11 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 		default:
 			n, err := conn.Read(buf)
 			if err != nil {
-				close(a.received)
 				if err == io.EOF {
 					utils.Log.Error("conn Read io.EOF")
+					continue
 				}
+				close(a.received)
 				readErrChan <- err
 				return
 			}
