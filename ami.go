@@ -201,7 +201,8 @@ func (a *amiAdapter) reader(conn net.Conn, stop <-chan struct{}, readErrChan cha
 			if err != nil {
 				if err == io.EOF {
 					utils.Log.Error("conn Read io.EOF")
-					continue
+					// 如果 continue, 会一直在次循环
+					// continue
 				}
 				close(a.received)
 				readErrChan <- err
