@@ -76,6 +76,8 @@ func (a *amiAdapter) initializeSocket() {
 	if err != nil {
 		utils.Log.Errorf("ami init socket %s", err)
 		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_Network_Error)
+		close(a.chanStop)
+		time.Sleep(time.Second)
 		return
 	}
 	defer conn.Close()
@@ -85,6 +87,7 @@ func (a *amiAdapter) initializeSocket() {
 	if err != nil {
 		utils.Log.Errorf("ami read socket %s", err)
 		a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
+		close(a.chanStop)
 		time.Sleep(time.Second)
 		return
 	}
