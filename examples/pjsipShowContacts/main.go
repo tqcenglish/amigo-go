@@ -14,20 +14,21 @@ var a *amigo.Amigo
 func amiTest() {
 	start := make(chan bool, 1)
 	settings := &amigo.Settings{
-		Host:     "192.168.17.168",
+		Host:     "127.0.0.1",
 		Port:     "5038",
 		Username: "admin",
 		Password: "admin",
 		LogLevel: log.WarnLevel}
 	a = amigo.New(settings, nil)
 	log.SetLevel(log.InfoLevel)
-	a.EventOn(func(payload ...interface{}) {
-		log.Infof("Event on %+v", payload[0])
-	})
+	// a.EventOn(func(payload ...interface{}) {
+	// 	log.Infof("Event on %+v", payload[0])
+	// })
 	a.ConnectOn(func(payload ...interface{}) {
 		status := payload[0].(pkg.ConnectStatus)
 		if status == pkg.Connect_OK {
 			start <- true
+			log.Infof("连接成功")
 		}
 	})
 	a.Connect()

@@ -67,6 +67,7 @@ func New(settings *Settings, Log *logrus.Entry) *Amigo {
 		status := payload[0].(pkg.ConnectStatus)
 		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
 			<-time.After(utils.ReconnectInterval)
+			utils.Log.Errorf("reconnect and reinit ami")
 			amiInstance.initAMI()
 		}
 	})
@@ -155,12 +156,12 @@ func (a *Amigo) Connected() bool {
 	return a.ami != nil && a.ami.online()
 }
 
-//EventOn 暴露内部 Event 事件
+// EventOn 暴露内部 Event 事件
 func (a *Amigo) EventOn(fn func(...interface{})) {
 	a.eventEmitter.AddListener("AMI_Event", fn)
 }
 
-//ConnectOn 暴露内部网络连接 事件
+// ConnectOn 暴露内部网络连接 事件
 func (a *Amigo) ConnectOn(fn func(...interface{})) {
 	a.eventEmitter.AddListener("AMI_Connect", fn)
 }
