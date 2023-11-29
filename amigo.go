@@ -210,9 +210,25 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 			if utils.EventComplete(event.Data["Event"], event.Data["EventList"]) {
 				response.Complete <- struct{}{}
 			}
-		} else {
-			utils.Log.Warnf("actionID %s can't get response", actionID)
 		}
+		/*
+			else {
+				// Event: OriginateResponse
+				// Privilege: call,all
+				// Timestamp: 1701241602.714315
+				// ActionID: 3e69c911-79d0-4424-be76-81284156dac7
+				// Response: Success
+				// Channel: PJSIP/100-00000009
+				// Context: playcall
+				// Exten: **19
+				// Reason: 4
+				// Uniqueid: 1701241599.27
+				// CallerIDNum: <unknown>
+				// CallerIDName: <unknown>
+				// 普通 action 发出后会多一个 Event 事件, 响应已拿到, 所以下面日志不需要警告
+				utils.Log.Warnf("actionID %s can't get response", actionID)
+			}
+		*/
 		return
 	}
 	a.eventEmitter.Emit("namiEvent", event)
