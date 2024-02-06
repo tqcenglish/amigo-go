@@ -14,7 +14,7 @@ const (
 	//ReconnectInterval reconnect interval
 	ReconnectInterval = 5 * time.Second
 	//PingInterval Ping
-	PingInterval = 5 * time.Second
+	PingInterval = 60 * time.Second
 
 	// ActionTimeout 超时(s), ping 也会在此基础上等待 response
 	ActionTimeout = 10

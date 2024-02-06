@@ -94,6 +94,8 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	a.responses.Store(actionID, parse.NewResponse(""))
 	a.ami.exec(action)
 
+	done := make(chan struct{}, 1)
+
 	// 响应处理(1.超时 2.连接断开)
 	go func() {
 		select {
@@ -109,13 +111,15 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 				res.(*parse.Response).Complete <- struct{}{}
 				return
 			}
-
+		case <-done:
+			return
 		}
 	}()
 
 	resInterface, _ := a.responses.Load(actionID)
 	res := resInterface.(*parse.Response)
 	<-res.Complete
+	done <- struct{}{}
 
 	close(res.Complete)
 	a.responses.Delete(actionID)
@@ -124,11 +128,12 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	if res.Data["Action"] == "logoff" {
 		a.ami.reconnect = false
 	}
+	//utils.Log.Infof("len data: %+v\n %+v\n %+v \n %+v\n", res, res.Data, res.Message, res.Events)
 	dataLen := len(res.Data)
 	res.RUnlock()
 
 	if dataLen == 0 {
-		return nil, nil, errors.New("wait complete response failure")
+		return nil, nil, errors.New("wait complete response failure, actionID: " + actionID)
 	}
 	return res.Data, res.Events, nil
 }
@@ -196,10 +201,10 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 		return
 	}
 
-	res.Complete <- struct{}{}
 	res.Lock()
 	res.Data = response.Data
 	res.Unlock()
+	res.Complete <- struct{}{}
 }
 func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
@@ -225,6 +230,29 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 				// Uniqueid: 1701241599.27
 				// CallerIDNum: <unknown>
 				// CallerIDName: <unknown>
+
+				AmigoConnID:1
+				Action:DBGet
+				Family:DND
+				Key:809
+				ActionID:ba57f33e-5a69-4ade-8f36-eb4514e9ac29
+
+				Response: Success
+				ActionID: ba57f33e-5a69-4ade-8f36-eb4514e9ac29
+				EventList: start
+				Message: Result will follow
+
+				Event: DBGetResponse
+				Family: DND
+				Key: 809
+				Val: no
+				ActionID: ba57f33e-5a69-4ade-8f36-eb4514e9ac29
+
+				Event: DBGetComplete
+				ActionID: ba57f33e-5a69-4ade-8f36-eb4514e9ac29
+				EventList: Complete
+				ListItems: 1
+
 				// 普通 action 发出后会多一个 Event 事件, 响应已拿到, 所以下面日志不需要警告
 				utils.Log.Warnf("actionID %s can't get response", actionID)
 			}

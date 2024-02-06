@@ -45,7 +45,7 @@ func (a *amiAdapter) login() error {
 	return nil
 }
 
-//SIPPeersRes respons
+// SIPPeersRes respons
 // Response: Success
 // ActionID: 043a71d0-4ee1-419f-9b0b-70751d6274c3
 // EventList: start
@@ -57,7 +57,7 @@ type SIPPeersRes struct {
 	Message   string `json:"message"`
 }
 
-//SIPpeersEvent event
+// SIPpeersEvent event
 // Event: PeerEntry
 // ActionID: 043a71d0-4ee1-419f-9b0b-70751d6274c3
 // Channeltype: SIP
@@ -89,7 +89,7 @@ type SIPpeersEvent struct {
 	ACL            string `json:"acl"`
 }
 
-//SIPpeers sip show peers
+// SIPpeers sip show peers
 func (a *Amigo) SIPpeers() (response *SIPPeersRes, events []*SIPpeersEvent, err error) {
 	var action = map[string]string{
 		"Action": "SIPpeers",

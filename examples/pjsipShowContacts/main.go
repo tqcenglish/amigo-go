@@ -14,13 +14,13 @@ var a *amigo.Amigo
 func amiTest() {
 	start := make(chan bool, 1)
 	settings := &amigo.Settings{
-		Host:     "127.0.0.1",
+		Host:     "192.168.18.252",
 		Port:     "5038",
 		Username: "admin",
 		Password: "admin",
-		LogLevel: log.WarnLevel}
+		LogLevel: log.InfoLevel}
 	a = amigo.New(settings, nil)
-	log.SetLevel(log.InfoLevel)
+	// log.SetLevel(log.InfoLevel)
 	// a.EventOn(func(payload ...interface{}) {
 	// 	log.Infof("Event on %+v", payload[0])
 	// })
@@ -28,7 +28,7 @@ func amiTest() {
 		status := payload[0].(pkg.ConnectStatus)
 		if status == pkg.Connect_OK {
 			start <- true
-			log.Infof("连接成功")
+			utils.Log.Info("连接成功")
 		}
 	})
 	a.Connect()
@@ -45,13 +45,13 @@ func amiTest() {
 			t := time.NewTimer(next.Sub(now))
 			<-t.C
 
-			result, events, err := a.Send(map[string]string{"Action": "PJSIPShowContacts"})
+			result, _, err := a.Send(map[string]string{"Action": "PJSIPShowContacts"})
 			if err != nil {
 				log.Error(err)
 			} else {
 				log.Infof("******************* 当前运行次数 %d**************************", count)
 				log.Infof("PJSIPShowContacts res %+v", result)
-				log.Infof("PJSIPShowContacts events %d %+v", len(events), events)
+				// log.Infof("PJSIPShowContacts events %d %+v", len(events), events)
 				log.Infof("************************************************************")
 			}
 			count = count + 1
