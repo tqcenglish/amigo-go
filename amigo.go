@@ -98,6 +98,12 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 
 	// 响应处理(1.超时 2.连接断开)
 	go func() {
+		// Complete panic: send on closed channel
+		defer func() {
+			if err := recover(); err != nil {
+				utils.Log.Warnf("panic occurred: %+v", err)
+			}
+		}()
 		select {
 		case <-a.ami.chanStop:
 			if res, ok := a.responses.Load(actionID); ok {
