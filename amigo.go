@@ -203,7 +203,9 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 
 	res := resInterface.(*parse.Response)
 	if value, ok := response.Data["Message"]; ok && !utils.IsResponse(value) {
+		res.Lock()
 		res.Data = response.Data
+		res.Unlock()
 		return
 	}
 
@@ -274,7 +276,7 @@ func (a *Amigo) handleMsg(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case msg := <-a.ami.msg:
-			a.onRawMessage(msg)
+			go a.onRawMessage(msg)
 		}
 	}
 }

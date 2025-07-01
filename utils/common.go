@@ -17,7 +17,7 @@ const (
 	PingInterval = 60 * time.Second
 
 	// ActionTimeout 超时(s), ping 也会在此基础上等待 response
-	ActionTimeout = 10
+	ActionTimeout = 20
 
 	//EOL 换行
 	EOL = "\r\n"
