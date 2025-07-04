@@ -221,6 +221,14 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 			response.Events = append(response.Events, *event)
 
 			if utils.EventComplete(event.Data["Event"], event.Data["EventList"]) {
+				// response.Lock()
+				// // 确保响应状态为 Success
+				// // Event 在 Response 之前触发, 这里将 Event 直接设置为Response
+				// if response.Data["Response"] == "" {
+				// 	response.Data = event.Data
+				// 	response.Data["Response"] = "Success"
+				// }
+				// response.Unlock()
 				response.Complete <- struct{}{}
 			}
 		}
@@ -276,7 +284,8 @@ func (a *Amigo) handleMsg(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case msg := <-a.ami.msg:
-			go a.onRawMessage(msg)
+			// go a.onRawMessage(msg)
+			a.onRawMessage(msg)
 		}
 	}
 }
