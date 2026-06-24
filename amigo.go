@@ -84,7 +84,8 @@ func New(settings *Settings, Log *logrus.Entry) *Amigo {
 // Usage amigo.Send(action map[string]string)
 func (a *Amigo) Send(action map[string]string) (data map[string]string, event []parse.Event, err error) {
 	utils.Log.Debugf("send action: %+v\n", action)
-	if !a.Connected() {
+	adapter := a.currentAMI()
+	if adapter == nil || !adapter.online() {
 		utils.Log.Warnf("ami not connected")
 		return nil, nil, utils.ErrNotConnected
 	}
@@ -92,7 +93,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 	actionID := utils.NewV4()
 	action["ActionID"] = actionID
 	a.responses.Store(actionID, parse.NewResponse(""))
-	a.ami.exec(action)
+	adapter.exec(action)
 
 	done := make(chan struct{}, 1)
 
@@ -105,7 +106,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 			}
 		}()
 		select {
-		case <-a.ami.chanStop:
+		case <-adapter.chanStop:
 			if res, ok := a.responses.Load(actionID); ok {
 				utils.Log.Warnf("action %+v %s wait complete chan failure CHAN-STOP", action, actionID)
 				res.(*parse.Response).Complete <- struct{}{}
@@ -132,7 +133,7 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 
 	res.RLock()
 	if res.Data["Action"] == "logoff" {
-		a.ami.reconnect = false
+		adapter.reconnect = false
 	}
 	//utils.Log.Infof("len data: %+v\n %+v\n %+v \n %+v\n", res, res.Data, res.Message, res.Events)
 	dataLen := len(res.Data)
@@ -158,6 +159,12 @@ func (a *Amigo) Connect() {
 
 func (a *Amigo) initAMI() {
 	newAMIAdapter(a.settings, a.eventEmitter, a)
+}
+
+func (a *Amigo) currentAMI() *amiAdapter {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+	return a.ami
 }
 
 // Connected returns true if successfully connected and logged in Asterisk and false otherwise.
@@ -278,14 +285,14 @@ func (a *Amigo) onRawEvent(event *parse.Event) {
 	a.eventEmitter.Emit("namiEvent", event)
 }
 
-func (a *Amigo) handleMsg(stop <-chan struct{}) {
+func (a *amiAdapter) handleMsg(stop <-chan struct{}) {
 	for {
 		select {
 		case <-stop:
 			return
-		case msg := <-a.ami.msg:
+		case msg := <-a.msg:
 			// go a.onRawMessage(msg)
-			a.onRawMessage(msg)
+			a.amigo.onRawMessage(msg)
 		}
 	}
 }

@@ -60,7 +60,7 @@ func newAMIAdapter(s *Settings, eventEmitter pkg.EventEmmiter, amigo *Amigo) {
 	amigo.mutex.Unlock()
 
 	go adapter.initializeSocket()
-	go amigo.handleMsg(adapter.chanStop)
+	go adapter.handleMsg(adapter.chanStop)
 }
 
 func (a *amiAdapter) initializeSocket() {
