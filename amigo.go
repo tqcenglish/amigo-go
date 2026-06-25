@@ -92,7 +92,9 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 
 	actionID := utils.NewV4()
 	action["ActionID"] = actionID
-	a.responses.Store(actionID, parse.NewResponse(""))
+	pendingResponse := parse.NewResponse("")
+	pendingResponse.Action = action["Action"]
+	a.responses.Store(actionID, pendingResponse)
 	adapter.exec(action)
 
 	done := make(chan struct{}, 1)
@@ -198,6 +200,16 @@ func (a *Amigo) onRawMessage(message string) {
 func (a *Amigo) onRawResponse(response *parse.Response) {
 	actionID := response.Data["ActionID"]
 	if actionID == "" {
+		// action:ping
+
+		// Response: Success
+		// Ping: Pong
+		// Timestamp: 1782377750.785180
+		if response.Data["Ping"] == "Pong" {
+			if a.completePendingPing(response) {
+				return
+			}
+		}
 		utils.Log.Warnf("No actionID Res %+v", response.Data)
 		return
 	}
@@ -221,6 +233,25 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	res.Unlock()
 	res.Complete <- struct{}{}
 }
+
+func (a *Amigo) completePendingPing(response *parse.Response) bool {
+	completed := false
+	a.responses.Range(func(_, value interface{}) bool {
+		res, ok := value.(*parse.Response)
+		if !ok || res.Action != "Ping" {
+			return true
+		}
+
+		res.Lock()
+		res.Data = response.Data
+		res.Unlock()
+		res.Complete <- struct{}{}
+		completed = true
+		return false
+	})
+	return completed
+}
+
 func (a *Amigo) onRawEvent(event *parse.Event) {
 	if actionID, existID := event.Data["ActionID"]; existID {
 		if resInterface, existRes := a.responses.Load(actionID); existRes {

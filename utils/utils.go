@@ -9,7 +9,9 @@ import (
 	"sync/atomic"
 )
 
-//Marshall 构建 action
+var sequence uint64
+
+// Marshall 构建 action
 func Marshall(action map[string]interface{}) string {
 	output := ""
 	for key, value := range action {
@@ -27,7 +29,7 @@ func Marshall(action map[string]interface{}) string {
 	return output
 }
 
-//StringMapToInterface 转换
+// StringMapToInterface 转换
 func StringMapToInterface(src map[string]string) (dst map[string]interface{}) {
 	dst = make(map[string]interface{}, len(src))
 	for k, v := range src {
@@ -36,14 +38,13 @@ func StringMapToInterface(src map[string]string) (dst map[string]interface{}) {
 	return
 }
 
-//NextID id
+// NextID id
 func NextID() string {
-	var sequence uint64
 	i := atomic.AddUint64(&sequence, 1)
 	return strconv.Itoa(int(i))
 }
 
-//SetField 反射设置值
+// SetField 反射设置值
 func SetField(obj interface{}, name string, value interface{}) error {
 	structValue := reflect.ValueOf(obj).Elem()
 	structFieldValue := structValue.FieldByName(name)
@@ -66,7 +67,7 @@ func SetField(obj interface{}, name string, value interface{}) error {
 	return nil
 }
 
-//IsResponse 通过 Message 判断当前响应属于 Event 还是 Response
+// IsResponse 通过 Message 判断当前响应属于 Event 还是 Response
 func IsResponse(message string) bool {
 	if strings.Contains(message, "Command output follows") {
 		return true
@@ -80,7 +81,7 @@ func IsResponse(message string) bool {
 	return true
 }
 
-//EventComplete 判断事件是否结束
+// EventComplete 判断事件是否结束
 func EventComplete(event, list string) bool {
 	if strings.Contains(event, "Complete") {
 		return true

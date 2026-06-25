@@ -24,6 +24,7 @@ func (a *amiAdapter) pinger(stop <-chan struct{}, errChan chan error) {
 		if _, _, err := a.amigo.Send(ping); err != nil {
 			utils.Log.Errorf("ping error: %+v", err)
 			errChan <- errors.New("ping timeout")
+			return
 		}
 	}
 }
