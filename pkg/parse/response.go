@@ -5,9 +5,10 @@ import "fmt"
 // Response 命令响应
 type Response struct {
 	*Message
-	Action   string
-	Events   []Event
-	Complete chan struct{}
+	Action       string
+	ConnectionID string
+	Events       []Event
+	Complete     chan struct{}
 }
 
 // NewResponse 新建事件
