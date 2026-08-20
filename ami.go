@@ -75,7 +75,7 @@ func (a *amiAdapter) initializeSocket() {
 	conn, err = a.openConnection()
 	if err != nil {
 		utils.Log.Errorf("ami init socket %s", err)
-		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_Network_Error)
+		a.notifyConnection(pkg.Connect_Network_Error)
 		close(a.chanStop)
 		time.Sleep(time.Second)
 		return
@@ -86,7 +86,7 @@ func (a *amiAdapter) initializeSocket() {
 	n, err := conn.Read(greetings)
 	if err != nil {
 		utils.Log.Errorf("ami read socket %s", err)
-		a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
+		a.notifyConnection(pkg.Disconnect_Network_Error)
 		close(a.chanStop)
 		time.Sleep(time.Second)
 		return
@@ -121,7 +121,7 @@ func (a *amiAdapter) initializeSocket() {
 			a.reconnect = false
 			return
 		}
-		a.eventEmitter.Emit("AMI_Connect", pkg.Connect_OK)
+		a.notifyConnection(pkg.Connect_OK)
 		a.pinger(a.chanStop, pingErrChan)
 	}()
 
@@ -142,7 +142,12 @@ func (a *amiAdapter) initializeSocket() {
 	a.connected = false
 	a.mutex.Unlock()
 
-	a.eventEmitter.Emit("AMI_Connect", pkg.Disconnect_Network_Error)
+	a.notifyConnection(pkg.Disconnect_Network_Error)
+}
+
+func (a *amiAdapter) notifyConnection(status pkg.ConnectStatus) {
+	a.amigo.onConnectionStatus(a, status)
+	a.eventEmitter.Emit("AMI_Connect", status)
 }
 
 func (a *amiAdapter) online() bool {

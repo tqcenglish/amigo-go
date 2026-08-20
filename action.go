@@ -21,7 +21,10 @@ func (a *amiAdapter) pinger(stop <-chan struct{}, errChan chan error) {
 		ping := map[string]string{
 			"Action": "Ping",
 		}
-		if _, _, err := a.amigo.Send(ping); err != nil {
+		// A pinger must always use its own connection.  Calling the public
+		// Send method here can bind an old pinger to a newly reconnected adapter,
+		// so a stale timeout incorrectly tears down the healthy connection.
+		if _, _, err := a.amigo.send(a, ping); err != nil {
 			utils.Log.Errorf("ping error: %+v", err)
 			errChan <- errors.New("ping timeout")
 			return

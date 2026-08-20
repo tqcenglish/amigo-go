@@ -63,15 +63,6 @@ func New(settings *Settings, Log *logrus.Entry) *Amigo {
 		connected:    false,
 	}
 
-	amiInstance.ConnectOn(func(payload ...interface{}) {
-		status := payload[0].(pkg.ConnectStatus)
-		if amiInstance.ami.reconnect && status != pkg.Connect_OK {
-			<-time.After(utils.ReconnectInterval)
-			utils.Log.Errorf("reconnect and reinit ami")
-			amiInstance.initAMI()
-		}
-	})
-
 	eventEmitter.On("namiEvent", func(payload ...interface{}) {
 		event := payload[0].(*parse.Event)
 		eventEmitter.Emit("AMI_Event", event.Data)
@@ -89,11 +80,18 @@ func (a *Amigo) Send(action map[string]string) (data map[string]string, event []
 		utils.Log.Warnf("ami not connected")
 		return nil, nil, utils.ErrNotConnected
 	}
+	return a.send(adapter, action)
+}
+
+// send executes an action on the supplied adapter. Internal users that are
+// tied to a connection (such as the pinger) must not look up the current one.
+func (a *Amigo) send(adapter *amiAdapter, action map[string]string) (data map[string]string, event []parse.Event, err error) {
 
 	actionID := utils.NewV4()
 	action["ActionID"] = actionID
 	pendingResponse := parse.NewResponse("")
 	pendingResponse.Action = action["Action"]
+	pendingResponse.ConnectionID = adapter.id
 	a.responses.Store(actionID, pendingResponse)
 	adapter.exec(action)
 
@@ -169,6 +167,25 @@ func (a *Amigo) currentAMI() *amiAdapter {
 	return a.ami
 }
 
+func (a *Amigo) isCurrentAMI(adapter *amiAdapter) bool {
+	return a.currentAMI() == adapter
+}
+
+func (a *Amigo) onConnectionStatus(adapter *amiAdapter, status pkg.ConnectStatus) {
+	if status == pkg.Connect_OK || !adapter.reconnect || !a.isCurrentAMI(adapter) {
+		return
+	}
+
+	time.AfterFunc(utils.ReconnectInterval, func() {
+		// A newer adapter may have connected while the reconnect delay elapsed.
+		if !a.isCurrentAMI(adapter) {
+			return
+		}
+		utils.Log.Errorf("reconnect and reinit ami")
+		a.initAMI()
+	})
+}
+
 // Connected returns true if successfully connected and logged in Asterisk and false otherwise.
 func (a *Amigo) Connected() bool {
 	a.mutex.RLock()
@@ -186,18 +203,18 @@ func (a *Amigo) ConnectOn(fn func(...interface{})) {
 	a.eventEmitter.AddListener("AMI_Connect", fn)
 }
 
-func (a *Amigo) onRawMessage(message string) {
+func (a *Amigo) onRawMessage(adapter *amiAdapter, message string) {
 	if ok := parse.EventRegexp.MatchString(message); ok {
 		event := parse.NewEvent(message)
 		a.onRawEvent(event)
 	} else if ok := parse.ResponseRegexp.MatchString(message); ok {
 		response := parse.NewResponse(message)
-		a.onRawResponse(response)
+		a.onRawResponse(adapter, response)
 	} else {
 		utils.Log.Warnf("Discarded: message %s", message)
 	}
 }
-func (a *Amigo) onRawResponse(response *parse.Response) {
+func (a *Amigo) onRawResponse(adapter *amiAdapter, response *parse.Response) {
 	actionID := response.Data["ActionID"]
 	if actionID == "" {
 		// action:ping
@@ -206,7 +223,7 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 		// Ping: Pong
 		// Timestamp: 1782377750.785180
 		if response.Data["Ping"] == "Pong" {
-			if a.completePendingPing(response) {
+			if a.completePendingPing(adapter, response) {
 				return
 			}
 		}
@@ -234,11 +251,11 @@ func (a *Amigo) onRawResponse(response *parse.Response) {
 	res.Complete <- struct{}{}
 }
 
-func (a *Amigo) completePendingPing(response *parse.Response) bool {
+func (a *Amigo) completePendingPing(adapter *amiAdapter, response *parse.Response) bool {
 	completed := false
 	a.responses.Range(func(_, value interface{}) bool {
 		res, ok := value.(*parse.Response)
-		if !ok || res.Action != "Ping" {
+		if !ok || res.Action != "Ping" || res.ConnectionID != adapter.id {
 			return true
 		}
 
@@ -323,7 +340,7 @@ func (a *amiAdapter) handleMsg(stop <-chan struct{}) {
 			return
 		case msg := <-a.msg:
 			// go a.onRawMessage(msg)
-			a.amigo.onRawMessage(msg)
+			a.amigo.onRawMessage(a, msg)
 		}
 	}
 }
